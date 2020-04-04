@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:batch="http://www.springframework.org/schema/batch"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+	http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+	http://www.springframework.org/schema/batch 
+	http://www.springframework.org/schema/batch/spring-batch-2.1.xsd">
+
+
+    <import resource="infra-context.xml"/>
+
+    <batch:job id="importIndividus">
+
+        <batch:step id="sayHelloTasklet" next="readWriteIndividus">
+            <batch:tasklet>
+				<bean id="myHelloTasklet" class="tech.elzakaria.batch.tasklet.HelloTasklet"/>
+            </batch:tasklet>
+        </batch:step>
+
+        <batch:step id="readWriteIndividus">
+            <batch:tasklet>
+                <batch:chunk reader="ireader" writer="iwriter" commit-interval="20" retry-limit="20">
+                    <batch:retryable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:retryable-exception-classes>
+                </batch:chunk>
+                <batch:listeners>
+                    <batch:listener ref="readListener"/>
+                    <batch:listener >
+                            <bean id="myOwnListenerForRetry" class="tech.elzakaria.batch.listeners.OnRetryOwnListener"/>
+                    </batch:listener>
+                </batch:listeners>
+            </batch:tasklet>
+        </batch:step>
+    </batch:job>
+
+
+    <bean id="ireader" class="org.springframework.batch.item.file.FlatFileItemReader" scope="step">
+        <property name="resource" value="file:/home/zakaria/dev/tmp/individusminimal.csv"/>
+        <property name="linesToSkip" value="1"/>
+        <property name="lineMapper">
+            <bean class="org.springframework.batch.item.file.mapping.DefaultLineMapper">
+                <property name="lineTokenizer">
+                    <bean class="org.springframework.batch.item.file.transform.DelimitedLineTokenizer">
+                        <property name="names" value="idfonc,nom,prenom,date"/>
+                    </bean>
+                </property>
+                <property name="fieldSetMapper">
+                    <bean class="tech.elzakaria.batch.IndividuFieldSetMapper"/>
+                </property>
+            </bean>
+        </property>
+    </bean>
+
+    <bean id="iwriter" class="tech.elzakaria.batch.ProductJdbcItemWriter">
+        <property name="jdbcTemplate" ref="jdbcTemplate"/>
+    </bean>
+
+    <bean id="readListener" class="tech.elzakaria.batch.listeners.ReadListener"/>
+</beans>
